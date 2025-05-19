@@ -37,6 +37,7 @@ uv venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 uv sync
 ```
+(You can also directly run `setup.sh` to set up the environment.)
 
 ## Usage
 
@@ -51,10 +52,6 @@ cd npm-package && npm link && cd ..
 # Run using npx (also supports all command-line parameters)
 npx -y mcp-trino-python --username user --password pass
 ```
-
-## Cursor Configuration
-
-This project includes Cursor configuration in `.cursor/rules/mcp-trino.mdc`. You can use Cursor IDE for improved development experience.
 
 ### Adding to Cursor
 
@@ -75,9 +72,9 @@ You can also configure the MCP server by editing Cursor's configuration JSON dir
         "-y",
         "mcp-trino-python",
         "--username",
-        "your_username",
+        "your_username", // Required
         "--password",
-        "your_password"
+        "your_password" // Required
       ]
     }
   }
@@ -99,9 +96,9 @@ If you've published the package to npm, you can use this configuration:
         "--port",
         "443",
         "--username",
-        "your_username",
+        "your_username", // Required
         "--password",
-        "your_password",
+        "your_password", // Required
         "--schema",
         "your_schema"
       ]
@@ -117,8 +114,8 @@ Available Confurations:
 | `--host` | Presto/Trino host server |
 | `--port` | Server port |
 | `--protocol` | Protocol (http/https) |
-| `--username` | Username for authentication |
-| `--password` | Password for authentication |
+| `--username` | Username for authentication (Required) |
+| `--password` | Password for authentication (Required) |
 | `--schema` | Default schema |
 | `--source` | Source identifier |
 | `--source-template` | Source template with {username} placeholder |
