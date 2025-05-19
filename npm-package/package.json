@@ -1,0 +1,23 @@
+{
+  "name": "mcp-trino-python",
+  "version": "1.0.0",
+  "description": "MCP server for Presto/Trino SQL queries",
+  "bin": {
+    "mcp-trino-python": "./bin/mcp-trino-python"
+  },
+  "scripts": {
+    "start": "node ./bin/mcp-trino-python"
+  },
+  "keywords": [
+    "mcp",
+    "trino",
+    "presto",
+    "cursor",
+    "sql"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=12.0.0"
+  }
+} 

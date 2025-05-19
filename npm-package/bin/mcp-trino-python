@@ -1,0 +1,80 @@
+#!/usr/bin/env node
+
+const { spawn } = require('child_process');
+const path = require('path');
+const fs = require('fs');
+
+// 获取脚本所在目录
+const scriptDir = path.resolve(__dirname, '../../');
+const mcpScript = path.join(scriptDir, 'mcp_server.py');
+
+// 检查Python脚本是否存在
+if (!fs.existsSync(mcpScript)) {
+  console.error(`Error: Could not find ${mcpScript}`);
+  process.exit(1);
+}
+
+// 获取命令行参数（去掉node和脚本路径）
+const args = process.argv.slice(2);
+
+console.log(`Starting MCP Trino server from: ${mcpScript}`);
+console.log('Running in native MCP protocol mode (for Cursor integration)');
+
+// 尝试找到虚拟环境中的Python路径
+function findPythonPath() {
+  // 检查环境变量
+  if (process.env.VIRTUAL_ENV) {
+    const venvPython = process.platform === 'win32'
+      ? path.join(process.env.VIRTUAL_ENV, 'Scripts', 'python.exe')
+      : path.join(process.env.VIRTUAL_ENV, 'bin', 'python');
+    
+    if (fs.existsSync(venvPython)) {
+      console.log(`Using Python from environment variable: ${venvPython}`);
+      return venvPython;
+    }
+  }
+
+  // 检查项目目录下的虚拟环境
+  const venvDir = path.join(scriptDir, '.venv');
+  if (fs.existsSync(venvDir)) {
+    const venvPython = process.platform === 'win32'
+      ? path.join(venvDir, 'Scripts', 'python.exe')
+      : path.join(venvDir, 'bin', 'python');
+    
+    if (fs.existsSync(venvPython)) {
+      console.log(`Using Python from project venv: ${venvPython}`);
+      return venvPython;
+    }
+  }
+
+  // 回退到系统Python
+  console.log('No virtual environment found, using system Python');
+  return 'python';
+}
+
+// 获取Python路径
+const pythonPath = findPythonPath();
+
+// 构建完整的启动命令
+const pythonArgs = [mcpScript, ...args];
+
+// 启动Python脚本并传递参数
+const pythonProcess = spawn(pythonPath, pythonArgs, {
+  stdio: 'inherit',
+  cwd: scriptDir
+});
+
+// 处理进程事件
+pythonProcess.on('error', (err) => {
+  console.error('Failed to start Python process:', err);
+});
+
+pythonProcess.on('close', (code) => {
+  console.log(`MCP Trino server exited with code ${code}`);
+});
+
+// 处理SIGINT信号，确保正确关闭Python进程
+process.on('SIGINT', () => {
+  console.log('Received SIGINT. Shutting down MCP server...');
+  pythonProcess.kill('SIGINT');
+}); 
