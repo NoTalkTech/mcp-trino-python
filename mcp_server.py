@@ -7,80 +7,43 @@ import traceback
 from typing import Any, Dict, List, Optional
 
 import mcp.types as types
-from mcp.server import Server
-from mcp.server.stdio import stdio_server
+from mcp.server import FastMCP
 
 from app.services.presto_service import PrestoService
 from app.config.settings import PRESTO_HOST, PRESTO_PORT, PRESTO_SCHEMA, print_config
 
 # 创建MCP服务器
-app = Server("mcp-trino-python")
+app = FastMCP("mcp-trino-python")
 
-# 资源列表
-@app.list_resources()
-async def list_resources() -> list[types.Resource]:
-    """返回可用资源列表"""
-    return [
-        types.Resource(
-            uri=f"trino://{PRESTO_HOST}:{PRESTO_PORT}/{PRESTO_SCHEMA}",
-            name=f"Trino Database ({PRESTO_SCHEMA})"
-        )
-    ]
+# 注册Trino资源
+@app.resource(
+    uri=f"trino://{PRESTO_HOST}:{PRESTO_PORT}/{PRESTO_SCHEMA}",
+    name=f"Trino Database ({PRESTO_SCHEMA})",
+    description="Trino SQL 数据库连接"
+)
+def trino_resource():
+    return {
+        "host": PRESTO_HOST,
+        "port": PRESTO_PORT,
+        "schema": PRESTO_SCHEMA
+    }
 
-# 定义工具列表
-@app.list_tools()
-async def list_tools() -> list[types.Tool]:
-    """列出可用的工具"""
-    return [
-        types.Tool(
-            name="execute-query",
-            title="Execute SQL Query",
-            description="执行SQL查询并返回结果",
-            resource_uri_patterns=["trino://*"]
-        ),
-        types.Tool(
-            name="list-tables",
-            title="List Database Tables",
-            description="列出数据库中的表",
-            resource_uri_patterns=["trino://*"]
-        ),
-        types.Tool(
-            name="describe-table",
-            title="Describe Table Structure",
-            description="获取表结构",
-            resource_uri_patterns=["trino://*"]
-        ),
-        types.Tool(
-            name="health-check",
-            title="Health Check",
-            description="检查服务健康状态",
-            resource_uri_patterns=["trino://*"]
-        )
-    ]
-
-# 定义工具的实现
-@app.call_tool()
-async def call_tool(tool_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
-    """处理工具调用请求"""
-    if tool_name == "execute-query":
-        return await execute_query(params)
-    elif tool_name == "list-tables":
-        return await list_tables(params)
-    elif tool_name == "describe-table":
-        return await describe_table(params)
-    elif tool_name == "health-check":
-        return await health_check(params)
-    else:
-        return {
-            "error": f"Unknown tool: {tool_name}"
-        }
-
-# 实现各个工具的功能
-async def execute_query(params: Dict[str, Any]) -> Dict[str, Any]:
+# 定义一个查询命令
+@app.tool(
+    name="execute-query",
+    description="Execute SQL Query",
+    annotations=types.ToolAnnotations(
+        title="Execute SQL Query",
+        readOnlyHint=True
+    )
+)
+async def execute_query(
+    params: Dict[str, Any]
+) -> Dict[str, Any]:
     """执行SQL查询并返回结果"""
     try:
         query = params.get("query")
-        limit = params.get("limit")
+        limit = params.get("limit", 2000)  # 设置默认值为 2000
         
         if not query:
             return {
@@ -104,7 +67,18 @@ async def execute_query(params: Dict[str, Any]) -> Dict[str, Any]:
             "traceback": traceback.format_exc()
         }
 
-async def list_tables(params: Dict[str, Any]) -> Dict[str, Any]:
+# 获取表列表
+@app.tool(
+    name="list-tables",
+    description="List Database Tables",
+    annotations=types.ToolAnnotations(
+        title="List Database Tables",
+        readOnlyHint=True
+    )
+)
+async def list_tables(
+    params: Dict[str, Any]
+) -> Dict[str, Any]:
     """列出数据库中的表"""
     try:
         schema = params.get("schema", PRESTO_SCHEMA)
@@ -128,7 +102,18 @@ async def list_tables(params: Dict[str, Any]) -> Dict[str, Any]:
             "traceback": traceback.format_exc()
         }
 
-async def describe_table(params: Dict[str, Any]) -> Dict[str, Any]:
+# 获取表结构
+@app.tool(
+    name="describe-table",
+    description="Describe Table Structure",
+    annotations=types.ToolAnnotations(
+        title="Describe Table Structure",
+        readOnlyHint=True
+    )
+)
+async def describe_table(
+    params: Dict[str, Any]
+) -> Dict[str, Any]:
     """获取表结构"""
     try:
         schema = params.get("schema", PRESTO_SCHEMA)
@@ -161,7 +146,18 @@ async def describe_table(params: Dict[str, Any]) -> Dict[str, Any]:
             "traceback": traceback.format_exc()
         }
 
-async def health_check(params: Dict[str, Any]) -> Dict[str, Any]:
+# 健康检查
+@app.tool(
+    name="health-check",
+    description="Health Check",
+    annotations=types.ToolAnnotations(
+        title="Health Check",
+        readOnlyHint=True
+    )
+)
+async def health_check(
+    params: Dict[str, Any]
+) -> Dict[str, Any]:
     """检查服务健康状态"""
     return {
         "status": "healthy",
@@ -176,12 +172,8 @@ async def main():
     # 打印当前配置
     print_config()
     
-    async with stdio_server() as streams:
-        await app.run(
-            streams[0],
-            streams[1],
-            app.create_initialization_options()
-        )
+    # 使用 FastMCP 的异步 stdio 方法
+    await app.run_stdio_async()
 
 if __name__ == "__main__":
     asyncio.run(main()) 

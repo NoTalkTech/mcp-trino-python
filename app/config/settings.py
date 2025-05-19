@@ -16,8 +16,7 @@ def parse_args():
     parser.add_argument('--source', help='Presto source')
     parser.add_argument('--source-template', help='Presto source template, use {username} for username replacement')
     
-    # 调试设置
-    parser.add_argument('--debug', action='store_true', help='Enable debug mode')
+    # 详细输出设置
     parser.add_argument('--verbose', action='store_true', help='Show verbose output')
     
     return parser.parse_args()
@@ -30,8 +29,8 @@ args = parse_args()
 PRESTO_HOST = args.host or os.getenv("PRESTO_HOST", "localhost")
 PRESTO_PORT = args.port or os.getenv("PRESTO_PORT", "8080")
 PRESTO_PROTOCOL = args.protocol or os.getenv("PRESTO_PROTOCOL", "https")
-PRESTO_USERNAME = args.username or os.getenv("PRESTO_USERNAME", "")
-PRESTO_PASSWORD = args.password or os.getenv("PRESTO_PASSWORD", "")
+PRESTO_USERNAME = args.username or os.getenv("PRESTO_USERNAME", None)
+PRESTO_PASSWORD = args.password or os.getenv("PRESTO_PASSWORD", None)
 PRESTO_SCHEMA = args.schema or os.getenv("PRESTO_SCHEMA", "default")
 
 # 处理源URL
@@ -44,8 +43,7 @@ if _source_template and PRESTO_USERNAME:
 else:
     PRESTO_SOURCE = _source
 
-# 调试设置
-DEBUG = args.debug or os.getenv("DEBUG", "False").lower() == "true"
+# 详细输出设置
 VERBOSE = args.verbose or os.getenv("VERBOSE", "False").lower() == "true"
 
 # 显示当前配置
@@ -59,5 +57,4 @@ def print_config():
     if VERBOSE:
         print(f"Source: {PRESTO_SOURCE}")
         print(f"Password: {'*' * (len(PRESTO_PASSWORD) if PRESTO_PASSWORD else 0)}")
-    print(f"Debug mode: {DEBUG}")
     print("==========================================") 
