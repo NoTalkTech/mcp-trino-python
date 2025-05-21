@@ -73,8 +73,18 @@ pythonProcess.on('close', (code) => {
   console.log(`MCP Trino server exited with code ${code}`);
 });
 
-// 处理SIGINT信号，确保正确关闭Python进程
+// Flag to track if SIGINT signal has been received
+let isShuttingDown = false;
+
+// Handle SIGINT signal to properly close the Python process
 process.on('SIGINT', () => {
+  if (isShuttingDown) {
+    // If already shutting down, don't print message again, just forward the signal
+    pythonProcess.kill('SIGINT');
+    return;
+  }
+  
+  isShuttingDown = true;
   console.log('Received SIGINT. Shutting down MCP server...');
   pythonProcess.kill('SIGINT');
 }); 

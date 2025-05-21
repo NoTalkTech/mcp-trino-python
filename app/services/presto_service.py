@@ -1,3 +1,4 @@
+import threading
 import pandas as pd
 from pyhive import presto
 import requests
@@ -8,6 +9,17 @@ import socket
 
 
 class PrestoService:
+    _conn: Optional[presto.Connection] = None
+    _conn_lock = threading.Lock()
+
+    @staticmethod
+    def get_connection():
+        if PrestoService._conn_lock.acquire():
+            if PrestoService._conn is None:
+                PrestoService._conn = PrestoService.create_connection()
+            PrestoService._conn_lock.release()
+        return PrestoService._conn
+
     @staticmethod
     def create_connection():
         """Create a connection to Presto."""
@@ -44,10 +56,10 @@ class PrestoService:
         if settings.PRESTO_CATALOG:
             connect_kwargs["catalog"] = settings.PRESTO_CATALOG
             
-        # 创建连接
+        # Create connection
         conn = presto.connect(**connect_kwargs)
         
-        # 在连接后设置资源组
+        # Set resource group after connection
         if settings.PRESTO_RESOURCE_GROUP:
             cursor = conn.cursor()
             try:
@@ -58,17 +70,17 @@ class PrestoService:
             finally:
                 cursor.close()
         
-        # 验证连接是否成功
+        # Verify connection is successful
         PrestoService.verify_connection(conn)
         
         return conn
     
     @staticmethod
     def _check_host_connectivity(host, port, timeout):
-        """检查主机端口是否可连通，快速失败"""
+        """Check if host port is accessible, fail fast"""
         start_time = time.time()
         try:
-            # 尝试TCP连接
+            # Try TCP connection
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(timeout)
             sock.connect((host, port))
@@ -81,14 +93,14 @@ class PrestoService:
     
     @staticmethod
     def _create_requests_session():
-        """创建带有超时配置的requests会话"""
+        """Create a requests session with timeout configuration"""
         session = requests.Session()
         
-        # 根据配置的协议创建对应的适配器
+        # Create adapter based on configured protocol
         protocol = settings.PRESTO_PROTOCOL.lower()
         adapter = requests.adapters.HTTPAdapter(max_retries=1)
         
-        # 只mount需要的协议
+        # Only mount the required protocol
         if protocol == 'https':
             session.mount('https://', adapter)
             print(f"✅ Created session with HTTPS adapter")
@@ -96,22 +108,22 @@ class PrestoService:
             session.mount('http://', adapter)
             print(f"✅ Created session with HTTP adapter")
         else:
-            # 为安全起见，如果协议不明确，两种都mount
+            # For safety, if protocol is unclear, mount both
             session.mount('http://', adapter)
             session.mount('https://', adapter)
             print(f"⚠️ Unknown protocol '{protocol}', mounting both HTTP and HTTPS adapters")
         
-        # 通过修改requests.Session.request方法来默认添加超时
+        # Add timeout defaults by modifying requests.Session.request method
         original_request = session.request
         
         def request_with_timeout(*args, **kwargs):
-            # 如果没有指定timeout，添加默认的超时
+            # If timeout is not specified, add default timeout
             if 'timeout' not in kwargs:
-                # 使用(connect_timeout, read_timeout)格式
+                # Use (connect_timeout, read_timeout) format
                 kwargs['timeout'] = (settings.CONNECT_TIMEOUT, settings.QUERY_TIMEOUT)
             return original_request(*args, **kwargs)
         
-        # 替换原始的request方法
+        # Replace the original request method
         session.request = request_with_timeout
         
         return session
@@ -121,7 +133,7 @@ class PrestoService:
         """Verify that the connection to Presto is successful."""
         cursor = conn.cursor()
         try:
-            # 执行简单查询来验证连接
+            # Execute a simple query to verify connection
             start_time = time.time()
             cursor.execute("SELECT 1")
             result = cursor.fetchone()
@@ -131,7 +143,7 @@ class PrestoService:
             else:
                 print(f"⚠️ Warning: Presto connection test returned unexpected result ({elapsed:.2f}s):", result)
         except Exception as e:
-            # 如果连接失败，关闭连接并抛出异常
+            # If connection fails, close connection and raise exception
             elapsed = time.time() - start_time
             cursor.close()
             conn.close()
@@ -152,11 +164,11 @@ class PrestoService:
         Returns:
             Tuple of (column_names, data, row_count)
         """
-        conn = PrestoService.create_connection()
+        conn = PrestoService.get_connection()
         cursor = conn.cursor()
         
         try:
-            # 设置查询超时
+            # Set query timeout
             if settings.QUERY_TIMEOUT:
                 try:
                     cursor.execute(f"SET SESSION query_max_execution_time = '{settings.QUERY_TIMEOUT}s'")
@@ -199,7 +211,6 @@ class PrestoService:
                 return [], [], 0
         finally:
             cursor.close()
-            conn.close()
     
     @staticmethod
     def execute_query_to_df(query: str, params: Optional[Dict[str, Any]] = None) -> pd.DataFrame:
@@ -213,11 +224,11 @@ class PrestoService:
         Returns:
             pandas DataFrame with query results
         """
-        conn = PrestoService.create_connection()
+        conn = PrestoService.get_connection()
         cursor = conn.cursor()
         
         try:
-            # 设置查询超时
+            # Set query timeout
             if settings.QUERY_TIMEOUT:
                 try:
                     cursor.execute(f"SET SESSION query_max_execution_time = '{settings.QUERY_TIMEOUT}s'")
@@ -256,4 +267,3 @@ class PrestoService:
                 return pd.DataFrame()
         finally:
             cursor.close()
-            conn.close() 

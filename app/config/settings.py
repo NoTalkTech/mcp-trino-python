@@ -2,14 +2,14 @@ import os
 import argparse
 from dotenv import load_dotenv
 
-# 加载环境变量（仅供参考，不再直接使用）
+# Load environment variables (for reference, not used directly)
 load_dotenv()
 
-# 命令行参数解析
+# Command line argument parsing
 def parse_args():
     parser = argparse.ArgumentParser(description='MCP Trino Python Server')
     
-    # Presto连接参数
+    # Presto connection parameters
     parser.add_argument('--host', default="localhost", help='Presto host (default: localhost)')
     parser.add_argument('--port', default="8080", help='Presto port (default: 8080)')
     parser.add_argument('--protocol', default="https", help='Presto protocol (http/https) (default: https)')
@@ -20,16 +20,16 @@ def parse_args():
     parser.add_argument('--source', default="mcp-trino-python", help='Presto source identifier (default: mcp-trino-python). Use {username} to include username.')
     parser.add_argument('--resource-group', default=None, help='Trino resource group or queue name')
     
-    # 超时设置
+    # Timeout settings
     parser.add_argument('--connect-timeout', type=int, default=10, help='Connection timeout in seconds (default: 10)')
     parser.add_argument('--query-timeout', type=int, default=300, help='Query timeout in seconds (default: 300)')
     
-    # 详细输出设置
+    # Verbose output settings
     parser.add_argument('--verbose', action='store_true', help='Show verbose output including credentials')
     
     return parser.parse_args()
 
-# 解析命令行参数
+# Parse command line arguments
 args = parse_args()
 
 # Presto connection settings
@@ -42,17 +42,17 @@ PRESTO_SCHEMA = args.schema
 PRESTO_RESOURCE_GROUP = args.resource_group
 PRESTO_CATALOG = args.catalog
 
-# 处理源URL (允许在source中使用{username}变量)
+# Process source URL (allows using {username} variable in source)
 PRESTO_SOURCE = args.source.format(username=PRESTO_USERNAME) if '{username}' in args.source else args.source
 
-# 超时设置
+# Timeout settings
 CONNECT_TIMEOUT = args.connect_timeout
 QUERY_TIMEOUT = args.query_timeout
 
-# 详细输出设置
+# Verbose output settings
 VERBOSE = args.verbose
 
-# 显示当前配置
+# Display current configuration
 def print_config():
     print("=== MCP Trino Python Server Configuration ===")
     print(f"Host: {PRESTO_HOST}")
