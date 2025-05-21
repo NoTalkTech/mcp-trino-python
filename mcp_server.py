@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import time
 import pandas as pd
 import traceback
 import signal
@@ -162,9 +163,9 @@ async def health_check(
 ) -> Dict[str, Any]:
     """Check service health status"""
     try:
-        # Try to create a connection to verify Presto connection is normal
-        conn = PrestoService.create_connection()
-        conn.close()
+        # Try to get a connection to verify Presto connection is normal
+        conn = PrestoService.get_connection()
+        PrestoService.release_connection(conn)
         status = "healthy"
     except Exception as e:
         status = "unhealthy"
@@ -187,6 +188,7 @@ async def health_check(
 
 # Prevent signal handler from being called multiple times
 _is_shutting_down = False
+is_valid = False
 
 # Define signal handler
 def signal_handler(sig, frame):
@@ -195,6 +197,8 @@ def signal_handler(sig, frame):
         return
     
     _is_shutting_down = True
+    if is_valid:
+        PrestoService.close_all()
     print("\n👋 Gracefully shutting down the server...")
     
     # Simple direct exit method, avoiding event loop problems
@@ -205,21 +209,26 @@ async def main():
     # Register signal handlers
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
+
+    global is_valid
     
     # Print current configuration
     print_config()
     
     # Check connection during initialization
-    try:
-        print("Checking connection to Presto/Trino server...")
-        conn = PrestoService.create_connection()
-        conn.close()
-        print("✅ Server is ready to use! Presto/Trino connection verified.")
-    except Exception as e:
-        print("⚠️ WARNING: Failed to connect to Presto/Trino server:")
-        print(f"    Error: {str(e)}")
-        print("    Server will continue to run, but commands may fail.")
-        print("    Please check your connection parameters.")
+    if not is_valid:
+        try:
+            print("Checking connection to Presto/Trino server...")
+            conn = PrestoService.get_connection()
+            PrestoService.release_connection(conn)
+            is_valid = True
+            print("✅ Server is ready to use! Presto/Trino connection verified.")
+        except Exception as e:
+            print("⚠️ WARNING: Failed to connect to Presto/Trino server:")
+            print(f"    Error: {str(e)}")
+            print("    Server will continue to run, but commands may fail.")
+            print("    Please check your connection parameters.")
+            time.sleep(5)
     
     # Use FastMCP's async stdio method
     await app.run_stdio_async()
