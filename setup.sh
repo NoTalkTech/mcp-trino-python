@@ -56,5 +56,8 @@ source .venv/bin/activate
 echo "Installing dependencies with uv..."
 uv sync
 
+# Link the package locally (run once)
+cd npm-package && npm link && cd ..
+
 echo "Setup complete! You can now run the server with:"
-echo "npx -y mcp-trino-python --help" 
+echo "npx -y mcp-trino-python --help"

@@ -43,12 +43,9 @@ uv sync
 
 ### Running with npx
 
-You can also run the server using npx without needing to install it globally:
+You can run the server using npx without needing to install it globally:
 
 ```bash
-# Link the package locally (run once)
-cd npm-package && npm link && cd ..
-
 # Run using npx (also supports all command-line parameters)
 npx -y mcp-trino-python --username user --password pass
 ```
@@ -57,7 +54,7 @@ npx -y mcp-trino-python --username user --password pass
 
 #### Method 1: Using JSON Configuration
 
-You can also configure the MCP server by editing Cursor's configuration JSON directly:
+You can configure the MCP server by editing Cursor's configuration JSON directly:
 
 1. Open Cursor settings (Cmd+, on Mac or Ctrl+, on Windows/Linux)
 2. Click on "Edit in JSON" at the top right
@@ -71,6 +68,10 @@ You can also configure the MCP server by editing Cursor's configuration JSON dir
       "args": [
         "-y",
         "mcp-trino-python",
+        "--host",
+        "your-trino-host",
+        "--port",
+        "443",
         "--username",
         "your_username", // Required
         "--password",
@@ -100,7 +101,9 @@ If you've published the package to npm, you can use this configuration:
         "--password",
         "your_password", // Required
         "--schema",
-        "your_schema"
+        "your_schema",
+        "--source",
+        "tempalte_{username}_adhoc" // Replace it wiht your source identifier
       ]
     }
   }
@@ -111,15 +114,17 @@ Available Confurations:
 
 | Option | Description |
 |--------|-------------|
-| `--host` | Presto/Trino host server |
-| `--port` | Server port |
-| `--protocol` | Protocol (http/https) |
+| `--host` | Presto/Trino host server (default: localhost) |
+| `--port` | Server port (default: 8080) |
+| `--protocol` | Protocol (http/https) (default: https) - Only the selected protocol adapter will be created |
 | `--username` | Username for authentication (Required) |
 | `--password` | Password for authentication (Required) |
-| `--schema` | Default schema |
-| `--source` | Source identifier |
-| `--source-template` | Source template with {username} placeholder |
-| `--debug` | Enable debug mode |
+| `--catalog` | Trino catalog name (default: hive) |
+| `--schema` | Default schema to use for queries (default: default) |
+| `--source` | Source identifier shown in Trino/Presto UI (default: mcp-trino-python) - Use {username} to include username |
+| `--resource-group` | Trino resource group or queue name for workload management |
+| `--connect-timeout` | Connection timeout in seconds (default: 10) - Controls how long to wait when establishing connections |
+| `--query-timeout` | Query timeout in seconds (default: 300) - Controls both client request timeout and server-side query timeout |
 | `--verbose` | Show verbose output including credentials |
 
 ## Available MCP Commands
