@@ -4,6 +4,8 @@ import asyncio
 import json
 import pandas as pd
 import traceback
+import signal
+import sys
 from typing import Any, Dict, List, Optional
 
 import mcp.types as types
@@ -159,21 +161,79 @@ async def health_check(
     params: Dict[str, Any]
 ) -> Dict[str, Any]:
     """检查服务健康状态"""
+    try:
+        # 尝试创建一个连接来验证 Presto 连接是否正常
+        conn = PrestoService.create_connection()
+        conn.close()
+        status = "healthy"
+    except Exception as e:
+        status = "unhealthy"
+        return {
+            "status": status,
+            "service": "mcp-trino-python",
+            "host": PRESTO_HOST,
+            "port": PRESTO_PORT,
+            "schema": PRESTO_SCHEMA,
+            "error": str(e)
+        }
+    
     return {
-        "status": "healthy",
+        "status": status,
         "service": "mcp-trino-python",
         "host": PRESTO_HOST,
         "port": PRESTO_PORT,
         "schema": PRESTO_SCHEMA
     }
 
+# 防止信号处理函数被多次调用
+_is_shutting_down = False
+
+# 定义信号处理函数
+def signal_handler(sig, frame):
+    global _is_shutting_down
+    if _is_shutting_down:
+        return
+    
+    _is_shutting_down = True
+    print("\n👋 Gracefully shutting down the server...")
+    
+    # 简单直接的退出方式，避免事件循环问题
+    sys.exit(0)
+
 # 主函数
 async def main():
+    # 注册信号处理程序
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    
     # 打印当前配置
     print_config()
+    
+    # 初始化时检测连接
+    try:
+        print("Checking connection to Presto/Trino server...")
+        conn = PrestoService.create_connection()
+        conn.close()
+        print("✅ Server is ready to use! Presto/Trino connection verified.")
+    except Exception as e:
+        print("⚠️ WARNING: Failed to connect to Presto/Trino server:")
+        print(f"    Error: {str(e)}")
+        print("    Server will continue to run, but commands may fail.")
+        print("    Please check your connection parameters.")
     
     # 使用 FastMCP 的异步 stdio 方法
     await app.run_stdio_async()
 
 if __name__ == "__main__":
-    asyncio.run(main()) 
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        # 这里已经由信号处理函数处理，不需要额外代码
+        pass
+    except Exception as e:
+        try:
+            print(f"❌ Fatal error: {str(e)}")
+            traceback.print_exc()
+        except:
+            # 防止在关闭时出现I/O错误
+            pass 
