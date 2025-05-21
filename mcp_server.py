@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import time
 import pandas as pd
 import traceback
 import signal
@@ -14,14 +15,14 @@ from mcp.server import FastMCP
 from app.services.presto_service import PrestoService
 from app.config.settings import PRESTO_HOST, PRESTO_PORT, PRESTO_SCHEMA, print_config
 
-# 创建MCP服务器
+# Create MCP server
 app = FastMCP("mcp-trino-python")
 
-# 注册Trino资源
+# Register Trino resource
 @app.resource(
     uri=f"trino://{PRESTO_HOST}:{PRESTO_PORT}/{PRESTO_SCHEMA}",
     name=f"Trino Database ({PRESTO_SCHEMA})",
-    description="Trino SQL 数据库连接"
+    description="Trino SQL database connection"
 )
 def trino_resource():
     return {
@@ -30,7 +31,7 @@ def trino_resource():
         "schema": PRESTO_SCHEMA
     }
 
-# 定义一个查询命令
+# Define a query command
 @app.tool(
     name="execute-query",
     description="Execute SQL Query",
@@ -42,17 +43,17 @@ def trino_resource():
 async def execute_query(
     params: Dict[str, Any]
 ) -> Dict[str, Any]:
-    """执行SQL查询并返回结果"""
+    """Execute SQL query and return results"""
     try:
         query = params.get("query")
-        limit = params.get("limit", 2000)  # 设置默认值为 2000
+        limit = params.get("limit", 2000)  # Default value is 2000
         
         if not query:
             return {
                 "error": "Query is required"
             }
         
-        # 执行查询
+        # Execute query
         columns, data, row_count = PrestoService.execute_query(
             query=query,
             limit=limit
@@ -69,7 +70,7 @@ async def execute_query(
             "traceback": traceback.format_exc()
         }
 
-# 获取表列表
+# Get table list
 @app.tool(
     name="list-tables",
     description="List Database Tables",
@@ -81,17 +82,17 @@ async def execute_query(
 async def list_tables(
     params: Dict[str, Any]
 ) -> Dict[str, Any]:
-    """列出数据库中的表"""
+    """List tables in the database"""
     try:
         schema = params.get("schema", PRESTO_SCHEMA)
         
-        # 查询表列表
+        # Query table list
         query = f"SHOW TABLES FROM {schema}"
         
-        # 执行查询
+        # Execute query
         df = PrestoService.execute_query_to_df(query=query)
         
-        # 转换成列表
+        # Convert to list
         tables = df.values.tolist() if not df.empty else []
         
         return {
@@ -104,7 +105,7 @@ async def list_tables(
             "traceback": traceback.format_exc()
         }
 
-# 获取表结构
+# Get table structure
 @app.tool(
     name="describe-table",
     description="Describe Table Structure",
@@ -116,7 +117,7 @@ async def list_tables(
 async def describe_table(
     params: Dict[str, Any]
 ) -> Dict[str, Any]:
-    """获取表结构"""
+    """Get table structure"""
     try:
         schema = params.get("schema", PRESTO_SCHEMA)
         table = params.get("table")
@@ -126,13 +127,13 @@ async def describe_table(
                 "error": "Table name is required"
             }
         
-        # 查询表结构
+        # Query table structure
         query = f"DESCRIBE {schema}.{table}"
         
-        # 执行查询
+        # Execute query
         df = PrestoService.execute_query_to_df(query=query)
         
-        # 转换成字典列表
+        # Convert to dictionary list
         columns = []
         if not df.empty:
             columns = df.to_dict(orient="records")
@@ -148,7 +149,7 @@ async def describe_table(
             "traceback": traceback.format_exc()
         }
 
-# 健康检查
+# Health check
 @app.tool(
     name="health-check",
     description="Health Check",
@@ -160,11 +161,11 @@ async def describe_table(
 async def health_check(
     params: Dict[str, Any]
 ) -> Dict[str, Any]:
-    """检查服务健康状态"""
+    """Check service health status"""
     try:
-        # 尝试创建一个连接来验证 Presto 连接是否正常
-        conn = PrestoService.create_connection()
-        conn.close()
+        # Try to get a connection to verify Presto connection is normal
+        conn = PrestoService.get_connection()
+        PrestoService.release_connection(conn)
         status = "healthy"
     except Exception as e:
         status = "unhealthy"
@@ -185,55 +186,63 @@ async def health_check(
         "schema": PRESTO_SCHEMA
     }
 
-# 防止信号处理函数被多次调用
+# Prevent signal handler from being called multiple times
 _is_shutting_down = False
+is_valid = False
 
-# 定义信号处理函数
+# Define signal handler
 def signal_handler(sig, frame):
     global _is_shutting_down
     if _is_shutting_down:
         return
     
     _is_shutting_down = True
+    if is_valid:
+        PrestoService.close_all()
     print("\n👋 Gracefully shutting down the server...")
     
-    # 简单直接的退出方式，避免事件循环问题
+    # Simple direct exit method, avoiding event loop problems
     sys.exit(0)
 
-# 主函数
+# Main function
 async def main():
-    # 注册信号处理程序
+    # Register signal handlers
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
+
+    global is_valid
     
-    # 打印当前配置
+    # Print current configuration
     print_config()
     
-    # 初始化时检测连接
-    try:
-        print("Checking connection to Presto/Trino server...")
-        conn = PrestoService.create_connection()
-        conn.close()
-        print("✅ Server is ready to use! Presto/Trino connection verified.")
-    except Exception as e:
-        print("⚠️ WARNING: Failed to connect to Presto/Trino server:")
-        print(f"    Error: {str(e)}")
-        print("    Server will continue to run, but commands may fail.")
-        print("    Please check your connection parameters.")
+    # Check connection during initialization
+    if not is_valid:
+        try:
+            print("Checking connection to Presto/Trino server...")
+            conn = PrestoService.get_connection()
+            PrestoService.release_connection(conn)
+            is_valid = True
+            print("✅ Server is ready to use! Presto/Trino connection verified.")
+        except Exception as e:
+            print("⚠️ WARNING: Failed to connect to Presto/Trino server:")
+            print(f"    Error: {str(e)}")
+            print("    Server will continue to run, but commands may fail.")
+            print("    Please check your connection parameters.")
+            time.sleep(5)
     
-    # 使用 FastMCP 的异步 stdio 方法
+    # Use FastMCP's async stdio method
     await app.run_stdio_async()
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        # 这里已经由信号处理函数处理，不需要额外代码
+        # Already handled by signal handler, no additional code needed
         pass
     except Exception as e:
         try:
             print(f"❌ Fatal error: {str(e)}")
             traceback.print_exc()
         except:
-            # 防止在关闭时出现I/O错误
+            # Prevent I/O errors during shutdown
             pass 

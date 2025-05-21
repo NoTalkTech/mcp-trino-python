@@ -36,3 +36,4 @@ ENV/
 .uv/
 .ruff_cache/
 .qodo/
+.cursor/
