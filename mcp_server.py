@@ -45,12 +45,18 @@ async def execute_query(
 ) -> Dict[str, Any]:
     """Execute SQL query and return results"""
     try:
-        query = params.get("query")
+        query_keys = ['query', 'sql', 'query_text', 'sql_text', 'query_string', 'sql_string']
+        query = None
+        for key in query_keys:
+            if key in params:
+                query = params[key]
+                break
+        
         limit = params.get("limit", 2000)  # Default value is 2000
         
         if not query:
             return {
-                "error": "Query is required"
+                "error": f"Query is required (use one of: {', '.join(query_keys)})"
             }
         
         # Execute query
@@ -120,11 +126,18 @@ async def describe_table(
     """Get table structure"""
     try:
         schema = params.get("schema", PRESTO_SCHEMA)
-        table = params.get("table")
+        
+        # Look for the table name in various parameter naming conventions
+        table_keys = ['table', 'table_name', 'tableName']
+        table = None
+        for key in table_keys:
+            if key in params:
+                table = params[key]
+                break
         
         if not table:
             return {
-                "error": "Table name is required"
+                "error": f"Table name is required (use one of: {', '.join(table_keys)})"
             }
         
         # Query table structure
